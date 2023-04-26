@@ -8,6 +8,9 @@ curl -o 2HDMC-1.8.0.tar.gz  https://2hdmc.hepforge.org/downloads/?f=2HDMC-1.8.0.
 tar -xvf 2HDMC-1.8.0.tar.gz
 popd
 
+cp setup_tools/TestPointVaryingm12_2.cpp CMSSW_12_4_8/src/2HDMC-1.8.0/src/ 
+sed -i '/PROG/s/$/ TestPointVaryingm12_2/' CMSSW_12_4_8/src/2HDMC-1.8.0/Makefile
+
 pushd CMSSW_12_4_8/src/2HDMC-1.8.0
 eval `scram runtime -sh`
 make
