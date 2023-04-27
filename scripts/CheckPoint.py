@@ -2,6 +2,7 @@ import os
 import subprocess
 import itertools
 import math as m
+import sys
 
 def IterateAndCheckTheoreticalConstraintsAndFindm12_2(type_2hdms=["X"],mhs=[125.0],mHs=[200.0],mAs=[160.0],mHcs=[200.0],tanbs=[10.0,20.0,30.0,40.0,50.0],sinbmas=[1.0]):
   cmd_list = [
@@ -198,19 +199,291 @@ def IterateAndFindWidthsAndBranchingRatios(type_2hdms=["X"],mhs=[125.0],mHs=[200
         if "QCD Only" in line: use_lines = False
 
         if use_lines and "DECAY QCD&EW" in line:
-          width_dict[name] = float(line.split()[3].replace("E","e"))
+          width = float(line.split()[3].replace("E","e"))
+          part = line.split("# ")[1].split()[0].replace("H+","Hc") 
+          if name in width_dict.keys():
+            width_dict[name][part] = width
+          else:
+            width_dict[name] = {part:width}
+
         if use_lines and "BR(" in line and ("h ->" in line or "H ->" in line or "A ->" in line or "H+ ->" in line):
           val = float(line.split()[0].replace("E","e"))
           proc_name = str("".join(line.split("(")[1].split(")")[0].rstrip().replace("->","_to_").replace("H+","Hc").replace("+","").replace("-","").split()))
-          if proc_name in br_dicts.keys():
-            br_dicts[proc_name][name] = val
+          if name in br_dicts.keys():
+            br_dicts[name][proc_name] = val
           else:
-            br_dicts[proc_name] = {name:val}
+            br_dicts[name] = {proc_name:val}
 
   return width_dict, br_dicts
+
+def calc_effective_couplings(al, be, yuktype):
+    if yuktype == 1:
+        dcs = calc_effective_cpls_type1(al, be)
+    elif yuktype == 2:
+        dcs = calc_effective_cpls_type2(al, be)
+    elif yuktype == 3:
+        dcs = calc_effective_cpls_type3(al, be)
+    elif yuktype == 4:
+        dcs = calc_effective_cpls_type4(al, be)
+    else:
+        raise RuntimeError
+    return dcs
+
+# calculate effective couplings in type 1
+def calc_effective_cpls_type1(a, b):
+    uu = cs(a) / ss(b)
+    dd = uu
+    ll = uu
+    vv = ss(b - a)
+    cplh = {
+        'tautau': ll,
+        'mumu': ll,
+        'tt': uu,
+        'bb': dd,
+        'ZZ': vv,
+        'WW': vv}
+    uu = ss(a) / ss(b)
+    dd = uu
+    ll = uu
+    vv = cs(b - a)
+    cplH = {
+        'tautau': ll,
+        'mumu': ll,
+        'tt': uu,
+        'bb': dd,
+        'ZZ': vv,
+        'WW': vv}
+    uu = 1 / np.tan(b)
+    dd = 1 / np.tan(b)
+    ll = 1 / np.tan(b)
+    cplA = {
+        'tautau': ll,
+        'mumu': ll,
+        'tt': uu,
+        'bb': dd}
+    return [cplh, cplH, cplA]
+
+# calculate effective couplings in type 2
+def calc_effective_cpls_type2(a, b):
+    uu = cs(a) / ss(b)
+    dd = -ss(a) / cs(b)
+    ll = dd
+    vv = ss(b - a)
+    cplh = {
+        'tautau': ll,
+        'mumu': ll,
+        'tt': uu,
+        'bb': dd,
+        'ZZ': vv,
+        'WW': vv}
+    uu = ss(a) / ss(b)
+    dd = cs(a) / cs(b)
+    ll = dd
+    vv = cs(b - a)
+    cplH = {
+        'tautau': ll,
+        'mumu': ll,
+        'tt': uu,
+        'bb': dd,
+        'ZZ': vv,
+        'WW': vv}
+    uu = 1 / np.tan(b)
+    dd = np.tan(b)
+    ll = dd
+    cplA = {
+        'tautau': ll,
+        'mumu': ll,
+        'tt': uu,
+        'bb': dd}
+    return [cplh, cplH, cplA]
+
+# calculate effective couplings in type 3
+def calc_effective_cpls_type3(a, b):
+    uu = cs(a) / ss(b)
+    dd = uu
+    ll = -ss(a) / cs(b)
+    vv = ss(b - a)
+    cplh = {
+        'tautau': ll,
+        'mumu': ll,
+        'tt': uu,
+        'bb': dd,
+        'ZZ': vv,
+        'WW': vv}
+    uu = ss(a) / ss(b)
+    dd = uu
+    ll = cs(a) / cs(b)
+    vv = cs(b - a)
+    cplH = {
+        'tautau': ll,
+        'mumu': ll,
+        'tt': uu,
+        'bb': dd,
+        'ZZ': vv,
+        'WW': vv}
+    uu = 1 / np.tan(b)
+    dd = -1 / np.tan(b)
+    ll = np.tan(b)
+    cplA = {
+        'tautau': ll,
+        'mumu': ll,
+        'tt': uu,
+        'bb': dd}
+    return [cplh, cplH, cplA]
+
+# calculate effective couplings in type 4
+def calc_effective_cpls_type4(a, b):
+    uu = cs(a) / ss(b)
+    dd = -ss(a) / cs(b)
+    ll = uu
+    vv = ss(b - a)
+    cplh = {
+        'tt': uu,
+        'bb': dd,
+        'tautau': ll,
+        'mumu': ll,
+        'ZZ': vv,
+        'WW': vv}
+    uu = ss(a) / ss(b)
+    dd = cs(a) / cs(b)
+    ll = uu
+    vv = cs(b - a)
+    cplH = {
+        'tt': uu,
+        'bb': dd,
+        'tautau': ll,
+        'mumu': ll,
+        'ZZ': vv,
+        'WW': vv}
+    uu = 1 / np.tan(b)
+    dd = np.tan(b)
+    ll = uu
+    cplA = {
+        'tautau': ll,
+        'mumu': ll,
+        'tt': uu,
+        'bb': dd}
+    return [cplh, cplH, cplA]
+
+def IterateAndCheckExperimentalConstraints(type_2hdms=["X"],mhs=[125.0],mHs=[200.0],mAs=[160.0],mHcs=[200.0],tanbs=[10.0,20.0,30.0,40.0,50.0],sinbmas=[1.0],widths_dict={},br_dicts={}):
+
+  import Higgs.predictions as HP
+  import Higgs.bounds as HB
+  import Higgs.signals as HS
+
+  pred = HP.Predictions()
+  bounds = HB.Bounds('CMSSW_12_4_8/src/hbdataset') # load HB dataset
+  signals = HS.Signals('CMSSW_12_4_8/src/hsdataset') # load HS dataset
+  
+  cs = np.cos
+  ss = np.sin
+
+  for (type_2hdm,mh,mH,mA,mHc,tanb,sinbma) in itertools.product(type_2hdms,mhs,mHs,mAs,mHcs,tanbs,sinbmas):
+    name = MakeName(type_2hdm=type_2hdm,mh=mh,mH=mH,mA=mA,mHc=mHc,tanb=tanb,sinbma=sinbma)
+
+    if name not in widths_dict: continue
+
+    h = pred.addParticle(HP.BsmParticle("h", "neutral", "even"))
+    h.setMass(mh)
+    if widths_dict[name]["h"] > 0:
+      h.setTotalWidth(widths_dict[name]["h"])
+    else:
+      print "Warning: h has negative width for {}. Setting to 1.".format(name)
+      h.setTotalWidth(1.0)
+ 
+    H = pred.addParticle(HP.BsmParticle("H", "neutral", "even"))
+    H.setMass(mH)
+    if widths_dict[name]["H"] > 0:
+      H.setTotalWidth(widths_dict[name]["H"])
+    else:
+      print "Warning: H has negative width for {}. Setting to 1.".format(name)
+      H.setTotalWidth(1.0)
+    
+    A = pred.addParticle(HP.BsmParticle("A", "neutral", "odd"))
+    A.setMass(mA)
+    if widths_dict[name]["A"] > 0:
+      h.setTotalWidth(widths_dict[name]["A"])
+    else:
+      print "Warning:A has negative width for {}. Setting to 1.".format(name)
+      A.setTotalWidth(1.0)
+
+    X = pred.addParticle(HP.BsmParticle("X", "single"))
+    X.setMass(mHc)
+    if widths_dict[name]["Hc"] > 0:
+      h.setTotalWidth(widths_dict[name]["X"])
+    else:
+      print "Warning: Hc has negative width for {}. Setting to 1.".format(name)
+      X.setTotalWidth(1.0)
+
+    for proc, br in br_dicts[name].items():
+
+      if br > 0.0 and br < 1.0:
+       
+        final_state = i.split("_to_")[1] 
+        final_state = final_state.replace("munu_mu","munu").replace("taunu_tau","taunu")
+        if len(final_state) == 3 and final_state[-1] == "b": final_state = final_state[:-1]
+ 
+        if "h_to" in proc:
+          if not ("A" in final_state or "H" in final_state or "h" in final_state):
+            h.setBr(final_state, val)
+          else:
+            h.setBr(final_state[0], final_state[1], val)
+
+        if "H_to" in proc:
+          if not ("A" in final_state or "H" in final_state or "h" in final_state):
+            H.setBr(final_state, val)
+          else:
+            H.setBr(final_state[0], final_state[1], val)
+
+        if "A_to" in proc:
+          if not ("A" in final_state or "H" in final_state or "h" in final_state):
+            A.setBr(final_state, val)
+          else:
+            A.setBr(final_state[0], final_state[1], val)
+
+        if "Hc_to" in proc:
+          if not ("A" in final_state or "H" in final_state or "h" in final_state):
+            X.setBr(final_state, val)
+          else:
+            X.setBr(final_state[0], final_state[1], val)
+
+    b = m.atan(tanb)
+    a = b - a.sin(sinbma)
+    cpl = calc_effective_couplings(a, b, thdm)
+
+    cpls = HP.NeutralEffectiveCouplings()
+    cpls.tt = cpl[0]['tt'] if 'tt' in cpl[0] else 0.0
+    cpls.bb = cpl[0]['bb'] if 'bb' in cpl[0] else 0.0
+    cpls.ZZ = cpl[0]['ZZ'] if 'ZZ' in cpl[0] else 0.0
+    cpls.WW = cpl[0]['WW'] if 'WW' in cpl[0] else 0.0
+    cpls.tautau = cpl[0]['tautau'] if 'tautau' in cpl[0] else 0.0
+    cpls.mumu = cpl[0]['mumu'] if 'mumu' in cpl[0] else 0.0
+    HP.effectiveCouplingInput(h,cpls,reference=HP.ReferenceModel.SMHiggsEW)
+
+    cpls = HP.NeutralEffectiveCouplings()
+    cpls.tt = cpl[1]['tt'] if 'tt' in cpl[1] else 0.0
+    cpls.bb = cpl[1]['bb'] if 'bb' in cpl[1] else 0.0
+    cpls.ZZ = cpl[1]['ZZ'] if 'ZZ' in cpl[1] else 0.0
+    cpls.WW = cpl[1]['WW'] if 'WW' in cpl[1] else 0.0
+    cpls.tautau = cpl[1]['tautau'] if 'tautau' in cpl[1] else 0.0
+    cpls.mumu = cpl[1]['mumu'] if 'mumu' in cpl[1] else 0.0
+    HP.effectiveCouplingInput(H,cpls,reference=HP.ReferenceModel.SMHiggsEW)
+
+    cpls = HP.NeutralEffectiveCouplings()
+    cpls.tt = cpl[2]['tt'] if 'tt' in cpl[2] else 0.0
+    cpls.bb = cpl[2]['bb'] if 'bb' in cpl[2] else 0.0
+    cpls.ZZ = cpl[2]['ZZ'] if 'ZZ' in cpl[2] else 0.0
+    cpls.WW = cpl[2]['WW'] if 'WW' in cpl[2] else 0.0
+    cpls.tautau = cpl[2]['tautau'] if 'tautau' in cpl[2] else 0.0
+    cpls.mumu = cpl[2]['mumu'] if 'mumu' in cpl[2] else 0.0
+    HP.effectiveCouplingInput(A,cpls,reference=HP.ReferenceModel.SMHiggsEW)
+
+    res = bounds(pred)
+    print res
 
 
 valid, m12_2 = IterateAndCheckTheoreticalConstraintsAndFindm12_2()
 width, brs = IterateAndFindWidthsAndBranchingRatios(m12_2_dict=m12_2)
 print(width)
 print(brs)
+IterateAndCheckExperimentalConstraints(widths_dict=width,br_dicts=brs)
