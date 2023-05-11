@@ -3,9 +3,12 @@ import subprocess
 import itertools
 import math as m
 import numpy as np
+import ROOT
+from array import array
 
 cs = np.cos
 ss = np.sin
+ROOT.gROOT.SetBatch(True)
 
 def IterateAndCheckTheoreticalConstraintsAndFindm12_2(type_2hdms=["X"],mhs=[125.0],mHs=[200.0],mAs=[160.0],mHcs=[200.0],tanbs=[10.0,20.0,30.0,40.0,50.0],sinbmas=[1.0]):
 
@@ -23,13 +26,13 @@ def IterateAndCheckTheoreticalConstraintsAndFindm12_2(type_2hdms=["X"],mhs=[125.
   for (type_2hdm,mh,mH,mA,mHc,tanb,sinbma) in itertools.product(type_2hdms,mhs,mHs,mAs,mHcs,tanbs,sinbmas):
     name = MakeName(type_2hdm=type_2hdm,mh=mh,mH=mH,mA=mA,mHc=mHc,tanb=tanb,sinbma=sinbma)
     valid_dict[name] = str(subprocess.check_output(['tail', '-1', "output/2HDMC_output_%(name)s.txt" % vars()]).decode("utf-8").rstrip()) != "Valid"
-    m12_2_dict[name] = float(subprocess.check_output(['tail', '-8', "output/2HDMC_output_%(name)s.txt" % vars()]).decode("utf-8").split()[1]) if not valid_dict[name] else None
+    m12_2_dict[name] = float(subprocess.check_output(['tail', '-8', "output/2HDMC_output_%(name)s.txt" % vars()]).decode("utf-8").split()[1])
     os.system("rm output/2HDMC_output_%(name)s.txt" % vars())
 
   return valid_dict, m12_2_dict
 
 def MakeName(type_2hdm="X",mh=125.0,mH=200.0,mA=160.0,mHc=200.0,tanb=20.0,sinbma=1.0):
-  return "t"+type_2hdm+"_mh"+str(mh)+"_mH"+str(mH)+"_mA"+str(mA)+"_mHc"+str(mHc)+"_tanb"+str(tanb)+"_sinbma"+str(sinbma)
+  return "t"+type_2hdm+"_mh"+str(float(mh))+"_mH"+str(float(mH))+"_mA"+str(float(mA))+"_mHc"+str(float(mHc))+"_tanb"+str(float(tanb))+"_sinbma"+str(float(sinbma))
 
 def WriteListToFile(lst,output_name):
   textfile = open(output_name, "w")
@@ -54,6 +57,13 @@ def IterateAndFindWidthsAndBranchingRatios(type_2hdms=["X"],mhs=[125.0],mHs=[200
 
   for (type_2hdm,mh,mH,mA,mHc,tanb,sinbma) in itertools.product(type_2hdms,mhs,mHs,mAs,mHcs,tanbs,sinbmas):
     name = MakeName(type_2hdm=type_2hdm,mh=mh,mH=mH,mA=mA,mHc=mHc,tanb=tanb,sinbma=sinbma)
+
+    mh = float(mh)
+    mH = float(mH)
+    mA = float(mA)
+    mHc = float(mHc)
+    tanb = float(tanb)
+    sinbma = float(sinbma)
 
     if excluded[name] == True: 
       continue
@@ -190,7 +200,7 @@ def IterateAndFindWidthsAndBranchingRatios(type_2hdms=["X"],mhs=[125.0],mHs=[200
   cmd_list = [
               "pushd CMSSW_10_2_19/src/2HDECAY/ > /dev/null 2>&1",
               "source /vols/grid/cms/setup.sh > /dev/null 2>&1",
-              "eval `scram runtime -sh` > /dev/null 2>&1",
+              "eval `scram runtime -sh 2> /dev/null`",
               "python 2HDECAY.py --input=%(input_name)s > /dev/null 2>&1" % vars(),
               #"python 2HDECAY.py --input=%(input_name)s" % vars(),
               "popd > /dev/null 2>&1"
@@ -199,6 +209,7 @@ def IterateAndFindWidthsAndBranchingRatios(type_2hdms=["X"],mhs=[125.0],mHs=[200
 
 
   for (type_2hdm,mh,mH,mA,mHc,tanb,sinbma) in itertools.product(type_2hdms,mhs,mHs,mAs,mHcs,tanbs,sinbmas):
+
     name = MakeName(type_2hdm=type_2hdm,mh=mh,mH=mH,mA=mA,mHc=mHc,tanb=tanb,sinbma=sinbma)
 
     if excluded[name] == True:
@@ -394,8 +405,9 @@ def IterateAndCheckExperimentalConstraints(type_2hdms=["X"],mhs=[125.0],mHs=[200
   bounds = HB.Bounds('hbdataset') # load HB dataset
   signals = HS.Signals('hsdataset') # load HS dataset
 
-  excluded = {}
-  
+  hs_excluded = {}
+  hb_excluded = {}  
+
   for (type_2hdm,mh,mH,mA,mHc,tanb,sinbma) in itertools.product(type_2hdms,mhs,mHs,mAs,mHcs,tanbs,sinbmas):
     name = MakeName(type_2hdm=type_2hdm,mh=mh,mH=mH,mA=mA,mHc=mHc,tanb=tanb,sinbma=sinbma)
 
@@ -435,6 +447,16 @@ def IterateAndCheckExperimentalConstraints(type_2hdms=["X"],mhs=[125.0],mHs=[200
       print("Warning: Hc has negative width for {}. Setting to 1.".format(name))
       X.setTotalWidth(1.0)
 
+    # ensure brs sum to one
+    sum_brs = 0.0
+    for _,v in br_dicts[name].items():
+      if v > 0.0:
+        sum_brs += v
+
+    for k, v in br_dicts[name].items():
+      br_dicts[name][k] = v/sum_brs
+
+    # add br
     for proc, br in br_dicts[name].items():
 
       if br > 0.001 and br < 1.0:
@@ -503,34 +525,167 @@ def IterateAndCheckExperimentalConstraints(type_2hdms=["X"],mhs=[125.0],mHs=[200
     HP.effectiveCouplingInput(A,cpls,reference=HP.ReferenceModel.SMHiggsEW)
 
     res = bounds(pred)
-    excluded[name] = not res.allowed
+    #print("tanb:", tanb)
+    #print("cosbma:", m.cos(m.asin(sinbma)))
+    #print("xs_ggh = ", h.cxn("LHC13", "ggH"))
+    #print("xs_bbh = ", h.cxn("LHC13", "bbH"))
+    #print("xs_ggH = ", H.cxn("LHC13", "ggH"))
+    #print("xs_bbH = ", H.cxn("LHC13", "bbH"))
+    #print("xs_ggA = ", A.cxn("LHC13", "ggH"))
+    #print("xs_bbA = ", A.cxn("LHC13", "bbH"))
+    #print("br_htotautau = ", h.br("tautau"))
+    #print("br_Htotautau = ", H.br("tautau"))
+    #print("br_Atotautau = ", A.br("tautau"))
+    #print("xs_ggh*br_htotautau = ", h.cxn("LHC13", "ggH")*h.br("tautau"))
+    #print("xs_bbh*br_htotautau = ", h.cxn("LHC13", "bbH")*h.br("tautau"))
+    #print("xs_ggH*br_htotautau = ", H.cxn("LHC13", "ggH")*H.br("tautau"))
+    #print("xs_bbH*br_htotautau = ", H.cxn("LHC13", "bbH")*H.br("tautau"))
+    #print("xs_ggA*br_Atotautau = ", A.cxn("LHC13", "ggH")*A.br("tautau"))
+    #print("xs_bbA*br_Atotautau = ", A.cxn("LHC13", "bbH")*A.br("tautau"))
+    #print(res)
+    chisq = signals(pred)
+    hb_excluded[name] = not res.allowed
+    hs_excluded[name] = chisq
 
-  return excluded
+  return hb_excluded, hs_excluded
 
-num = 100
-ltanbs = list(np.logspace(np.log10(1.0),np.log10(100.0),num))
-cosbmas = list(np.linspace(-1.0,1.0,num))
+def GetAllInformation(type_2hdms=["X"],mhs=[125.0],mHs=[200.0],mAs=[160.0],mHcs=[200.0],tanbs=[10.0,20.0,30.0,40.0,50.0],sinbmas=[1.0],input_name=""):
+  theory_excluded, m12_2 = IterateAndCheckTheoreticalConstraintsAndFindm12_2(type_2hdms=type_2hdms,mhs=mhs,mHs=mHs,mAs=mAs,mHcs=mHcs,tanbs=tanbs,sinbmas=sinbmas)
+  widths, brs, theory_excluded = IterateAndFindWidthsAndBranchingRatios(type_2hdms=type_2hdms,mhs=mhs,mHs=mHs,mAs=mAs,mHcs=mHcs,tanbs=tanbs,sinbmas=sinbmas,m12_2_dict=m12_2,excluded=theory_excluded,input_name=input_name)
+  exp_excluded_hb, exp_excluded_hs = IterateAndCheckExperimentalConstraints(type_2hdms=type_2hdms,mhs=mhs,mHs=mHs,mAs=mAs,mHcs=mHcs,tanbs=tanbs,sinbmas=sinbmas,widths_dict=widths,br_dicts=brs)
+  return m12_2, theory_excluded, exp_excluded_hb, exp_excluded_hs, widths, brs
 
-tanbs = [round(tanb,4) for tanb in ltanbs]
-lsinbmas = [round(m.sin(m.acos(cosbma)),4) for cosbma in cosbmas]
+def CreateJob(name,cmd_list):
+  if os.path.exists(name): os.system('rm %(name)s' % vars())
+  for cmd in cmd_list:
+    os.system('echo "%(cmd)s" >> %(name)s' % vars())
+  os.system('chmod +x %(name)s' % vars())
+  print("Created job:",name)
 
-total_theory_excluded = {}
-total_exp_excluded = {}
-total_widths = {}
-total_brs = {}
-for ind, sinbmas in enumerate(lsinbmas):
-  if ind ==1: break
-  print(str(ind)+"/"+str(num))
-  sinbmas = [sinbmas]
-  os.system("rm output/*")
-  theory_excluded, m12_2 = IterateAndCheckTheoreticalConstraintsAndFindm12_2(tanbs=tanbs,sinbmas=sinbmas)
-  widths, brs, theory_excluded = IterateAndFindWidthsAndBranchingRatios(tanbs=tanbs,sinbmas=sinbmas,m12_2_dict=m12_2,excluded=theory_excluded)
-  exp_excluded = IterateAndCheckExperimentalConstraints(tanbs=tanbs,sinbmas=sinbmas,widths_dict=widths,br_dicts=brs)
+def CreateBatchJob(name,cmssw_base,cmd_list):
+  if os.path.exists(name): os.system('rm %(name)s' % vars())
+  os.system('echo "#!/bin/bash" >> %(name)s' % vars())
+  os.system('echo "cd %(cmssw_base)s/src/UserCode/2HDM-Information" >> %(name)s' % vars())
+  os.system('echo "source /vols/grid/cms/setup.sh" >> %(name)s' % vars())
+  os.system('echo "export SCRAM_ARCH=slc6_amd64_gcc481" >> %(name)s' % vars())
+  os.system('echo "eval \'scramv1 runtime -sh\'" >> %(name)s' % vars())
+  os.system('echo "ulimit -c 0" >> %(name)s' % vars())
+  for cmd in cmd_list:
+    os.system('echo "%(cmd)s" >> %(name)s' % vars())
+  os.system('chmod +x %(name)s' % vars())
+  print("Created job:",name)
 
-  total_theory_excluded.update(theory_excluded)
-  total_exp_excluded.update(exp_excluded)
-  total_widths.update(widths)
-  total_brs.update(brs)
+def SubmitBatchJob(name,time=180,memory=24,cores=1):
+  error_log = name.replace('.sh','_error.log')
+  output_log = name.replace('.sh','_output.log')
+  if os.path.exists(error_log): os.system('rm %(error_log)s' % vars())
+  if os.path.exists(output_log): os.system('rm %(output_log)s' % vars())
+  if cores>1: os.system('qsub -e %(error_log)s -o %(output_log)s -V -q hep.q -pe hep.pe %(cores)s -l h_rt=0:%(time)s:0 -l h_vmem=%(memory)sG -cwd %(name)s' % vars())
+  else: os.system('qsub -e %(error_log)s -o %(output_log)s -V -q hep.q -l h_rt=0:%(time)s:0 -l h_vmem=%(memory)sG -cwd %(name)s' % vars())
 
-print(total_theory_excluded)
-print(total_exp_excluded)
+def GetBinCenters(b):
+  return [(b[i]+b[i+1])/2 for i in range(0,len(b)-1)]
+
+def contourFromTH2(h2in, threshold, minPoints=10, frameValue=1000., name="Graph"):
+    # // http://root.cern.ch/root/html/tutorials/hist/ContourList.C.html
+    contoursList = [threshold]
+    contours = array('d', contoursList)
+    # if (h2in.GetNbinsX() * h2in.GetNbinsY()) > 10000: minPoints = 50
+    # if (h2in.GetNbinsX() * h2in.GetNbinsY()) <= 100: minPoints = 10
+
+    h2 = frameTH2D(h2in, threshold, frameValue)
+
+    h2.SetContour(1, contours)
+
+    # Draw contours as filled regions, and Save points
+    # backup = ROOT.gPad # doesn't work in pyroot, backup behaves like a ref to gPad
+    canv = ROOT.TCanvas('tmp', 'tmp')
+    canv.cd()
+    h2.Draw('CONT Z LIST')
+    ROOT.gPad.Update()  # Needed to force the plotting and retrieve the contours in
+
+    conts = ROOT.gROOT.GetListOfSpecials().FindObject('contours')
+    contLevel = None
+
+    if conts is None or conts.GetSize() == 0:
+        print('*** No Contours Were Extracted!')
+        return None
+    ret = ROOT.TList()
+    for i in range(conts.GetSize()):
+        contLevel = conts.At(i)
+        for ind,j in enumerate(range(contLevel.GetSize())):
+            gr1 = contLevel.At(j)
+            gr1.SetName(name+"_"+str(ind+1))
+            if gr1.GetN() > minPoints:
+                ret.Add(gr1.Clone())
+            # // break;
+    # backup.cd()
+    canv.Close()
+    return ret
+
+def frameTH2D(hist, threshold, frameValue=1000):
+    # Now supports variable-binned histograms First adds a narrow frame (1% of
+    # of bin widths) around the outside with same values as the real edge. Then
+    # adds another frame another frame around this one filled with some chosen
+    # value that will make the contours close
+
+    # Get lists of the bin edges
+    x_bins = [hist.GetXaxis().GetBinLowEdge(x)
+              for x in range(1, hist.GetNbinsX() + 2)]
+    y_bins = [hist.GetYaxis().GetBinLowEdge(y)
+              for y in range(1, hist.GetNbinsY() + 2)]
+
+    # New bin edge arrays will need an extra four values
+    x_new = [0.] * (len(x_bins) + 4)
+    y_new = [0.] * (len(y_bins) + 4)
+
+    # Calculate bin widths at the edges
+    xw1 = x_bins[1] - x_bins[0]
+    xw2 = x_bins[-1] - x_bins[-2]
+    yw1 = y_bins[1] - y_bins[0]
+    yw2 = y_bins[-1] - y_bins[-2]
+
+    # Set the edges of the outer framing bins and the adjusted
+    # edge of the real edge bins
+    x_new[0] = x_bins[0] - 2 * xw1 * 0.02
+    x_new[1] = x_bins[0] - 1 * xw1 * 0.02
+    x_new[-1] = x_bins[-1] + 2 * xw2 * 0.02
+    x_new[-2] = x_bins[-1] + 1 * xw2 * 0.02
+    y_new[0] = y_bins[0] - 2 * yw1 * 0.02
+    y_new[1] = y_bins[0] - 1 * yw1 * 0.02
+    y_new[-1] = y_bins[-1] + 2 * yw2 * 0.02
+    y_new[-2] = y_bins[-1] + 1 * yw2 * 0.02
+
+    # Copy the remaining bin edges from the hist
+    for i in range(0, len(x_bins)):
+        x_new[i + 2] = x_bins[i]
+    for i in range(0, len(y_bins)):
+        y_new[i + 2] = y_bins[i]
+
+    # print x_new
+    # print y_new
+
+    framed = ROOT.TH2D('%s framed' % hist.GetName(), '%s framed' % hist.GetTitle(), len(
+        x_new) - 1, array('d', x_new), len(y_new) - 1, array('d', y_new))
+    framed.SetDirectory(0)
+
+    for x in range(1, framed.GetNbinsX() + 1):
+        for y in range(1, framed.GetNbinsY() + 1):
+            if x == 1 or x == framed.GetNbinsX() or y == 1 or y == framed.GetNbinsY():
+        # This is a a frame bin
+                framed.SetBinContent(x, y, frameValue)
+            else:
+                # adjust x and y if we're in the first frame so as to copy the output
+                # values from the real TH2
+                ux = x
+                uy = y
+                if x == 2:
+                    ux += 1
+                elif x == (len(x_new) - 2):
+                    ux -= 1
+                if y == 2:
+                    uy += 1
+                elif y == (len(y_new) - 2):
+                    uy -= 1
+                framed.SetBinContent(x, y, hist.GetBinContent(ux - 2, uy - 2))
+    return framed
