@@ -31,6 +31,7 @@ int main(int argc, char *argv[]) {
   double lambda_6 = 0.;
   double lambda_7 = 0.;
   double tb = 2.0;
+  int yt = 1;
 
   int opt;
   static struct option long_options[] = {
@@ -42,10 +43,11 @@ int main(int argc, char *argv[]) {
       {"lambda_6", required_argument, 0, '6'},
       {"lambda_7", required_argument, 0, '7'},
       {"tb", required_argument, 0, 't'},
+      {"yt", required_argument, 0, 'y'},
       {0, 0, 0, 0}
   };
   int option_index = 0;
-  while ((opt = getopt_long(argc, argv, "h:H:A:C:s:6:7:t:m:", long_options, &option_index)) != -1) {
+  while ((opt = getopt_long(argc, argv, "h:H:A:C:s:6:7:t:y:m:", long_options, &option_index)) != -1) {
       switch (opt) {
           case 'h':
               mh = strtod(optarg, nullptr);
@@ -53,7 +55,7 @@ int main(int argc, char *argv[]) {
           case 'H':
               mH = strtod(optarg, nullptr);
               break;
-	  case 'A':
+      	  case 'A':
               mA = strtod(optarg, nullptr);
               break;
           case 'C':
@@ -62,14 +64,17 @@ int main(int argc, char *argv[]) {
           case 's':
               sba = strtod(optarg, nullptr);
               break;
-	  case '6':
+      	  case '6':
               lambda_6 = strtod(optarg, nullptr);
               break;
           case '7':
               lambda_7 = strtod(optarg, nullptr);
               break;
-	  case 't':
+       	  case 't':
               tb = strtod(optarg, nullptr);
+              break;
+          case 'y':
+              yt = strtod(optarg, nullptr);
               break;
           case '?':
               std::cerr << "Unknown option: " << optopt << std::endl;
@@ -119,7 +124,7 @@ int main(int argc, char *argv[]) {
     }
 
     // Set Yukawa couplings to type II
-    model.set_yukawas_type(1);
+    model.set_yukawas_type(yt);
 
     // Print the parameters in different parametrizations
     model.print_param_phys();

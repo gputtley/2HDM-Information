@@ -6,24 +6,38 @@ import numpy as np
 import ROOT
 from array import array
 
+ROOT.gErrorIgnoreLevel = ROOT.kInfo
+
 cs = np.cos
 ss = np.sin
 ROOT.gROOT.SetBatch(True)
 
-def IterateAndCheckTheoreticalConstraintsAndFindm12_2(type_2hdms=["X"],mhs=[125.0],mHs=[200.0],mAs=[160.0],mHcs=[200.0],tanbs=[10.0,20.0,30.0,40.0,50.0],sinbmas=[1.0]):
+def ConvertTypeToInt(yt, ordered=False):
+  if yt in ["1","2"]:
+    return int(yt)
+  elif yt == "Y" or (yt == "X" and ordered):
+    return 3
+  elif yt == "X" or (yt == "Y" and ordered):
+    return 4
+  else:
+    return None
 
-  print("<< Running 2HDMC >>")
+def CheckTheoreticalConstraintsAndFindm12_2(type_2hdms=["X"],mhs=[125.0],mHs=[200.0],mAs=[160.0],mHcs=[200.0],tanbs=[10.0],sinbmas=[1.0]):
 
-  cmd_list = ["pushd 2HDMC-1.8.0/ > /dev/null"]
-  for (type_2hdm,mh,mH,mA,mHc,tanb,sinbma) in itertools.product(type_2hdms,mhs,mHs,mAs,mHcs,tanbs,sinbmas):
+  cmd_wrapper_init = "pushd 2HDMC-1.8.0/ > /dev/null"
+  cmd_wrapper_fin = "popd > /dev/null"
+  cmd_list = []
+  for (type_2hdm,mh,mH,mA,mHc,tanb,sinbma) in zip(type_2hdms,mhs,mHs,mAs,mHcs,tanbs,sinbmas):
     name = MakeName(type_2hdm=type_2hdm,mh=mh,mH=mH,mA=mA,mHc=mHc,tanb=tanb,sinbma=sinbma)
-    cmd_list.append("./TestPointVaryingm12_2 --mh=%(mh)s --mH=%(mH)s --mA=%(mA)s --mC=%(mHc)s --tb=%(tanb)s --sba=%(sinbma)s &> ../output/2HDMC_output_%(name)s.txt" % vars())
-  cmd_list.append("popd > /dev/null"),
-  os.system(";".join(cmd_list))
+    yt = ConvertTypeToInt(type_2hdm)
+    cmd_list.append("./TestPointVaryingm12_2 --mh=%(mh)s --mH=%(mH)s --mA=%(mA)s --mC=%(mHc)s --tb=%(tanb)s --sba=%(sinbma)s --yt=%(yt)s &> ../output/2HDMC_output_%(name)s.txt" % vars())
+    #cmd_list.append("./TestPointVaryingm12_2 --mh=%(mh)s --mH=%(mH)s --mA=%(mA)s --mC=%(mHc)s --tb=%(tanb)s --sba=%(sinbma)s --yt=%(yt)s | tee ../output/2HDMC_output_%(name)s.txt" % vars())
+  for cmd in cmd_list:
+    os.system(";".join([cmd_wrapper_init,cmd,cmd_wrapper_fin]))
 
   valid_dict = {}
   m12_2_dict = {}
-  for (type_2hdm,mh,mH,mA,mHc,tanb,sinbma) in itertools.product(type_2hdms,mhs,mHs,mAs,mHcs,tanbs,sinbmas):
+  for type_2hdm,mh,mH,mA,mHc,tanb,sinbma in zip(type_2hdms,mhs,mHs,mAs,mHcs,tanbs,sinbmas):
     name = MakeName(type_2hdm=type_2hdm,mh=mh,mH=mH,mA=mA,mHc=mHc,tanb=tanb,sinbma=sinbma)
     valid_dict[name] = str(subprocess.check_output(['tail', '-1', "output/2HDMC_output_%(name)s.txt" % vars()]).decode("utf-8").rstrip()) != "Valid"
     m12_2_dict[name] = float(subprocess.check_output(['tail', '-8', "output/2HDMC_output_%(name)s.txt" % vars()]).decode("utf-8").split()[1])
@@ -40,9 +54,7 @@ def WriteListToFile(lst,output_name):
     textfile.write(i + "\n")
   textfile.close()
 
-def IterateAndFindWidthsAndBranchingRatios(type_2hdms=["X"],mhs=[125.0],mHs=[200.0],mAs=[160.0],mHcs=[200.0],tanbs=[10.0,20.0,30.0,40.0,50.0],sinbmas=[1.0],m12_2_dict={},excluded={},renscheme=7,input_name=""):
-
-  print("<< Running 2HDECAY >>")
+def FindWidthsAndBranchingRatios(type_2hdms=["X"],mhs=[125.0],mHs=[200.0],mAs=[160.0],mHcs=[200.0],tanbs=[10.0],sinbmas=[1.0],m12_2_dict={},excluded={},renscheme=7,input_name=""):
 
   if os.path.isdir("CMSSW_10_2_19/src/2HDECAY/Input{}".format(input_name)):
     os.system("rm -r CMSSW_10_2_19/src/2HDECAY/Input{}".format(input_name))
@@ -55,7 +67,7 @@ def IterateAndFindWidthsAndBranchingRatios(type_2hdms=["X"],mhs=[125.0],mHs=[200
   width_dict = {}
   br_dicts = {}
 
-  for (type_2hdm,mh,mH,mA,mHc,tanb,sinbma) in itertools.product(type_2hdms,mhs,mHs,mAs,mHcs,tanbs,sinbmas):
+  for (type_2hdm,mh,mH,mA,mHc,tanb,sinbma) in zip(type_2hdms,mhs,mHs,mAs,mHcs,tanbs,sinbmas):
     name = MakeName(type_2hdm=type_2hdm,mh=mh,mH=mH,mA=mA,mHc=mHc,tanb=tanb,sinbma=sinbma)
 
     mh = float(mh)
@@ -68,8 +80,8 @@ def IterateAndFindWidthsAndBranchingRatios(type_2hdms=["X"],mhs=[125.0],mHs=[200
     if excluded[name] == True: 
       continue
 
-    if type_2hdm == "X":
-      num_2hdm = "3"
+    num_2hdm = ConvertTypeToInt(type_2hdm,ordered=True)
+
 
     file_list = [
                  "SLHAIN   = 1",
@@ -208,7 +220,7 @@ def IterateAndFindWidthsAndBranchingRatios(type_2hdms=["X"],mhs=[125.0],mHs=[200
   os.system(";".join(cmd_list))
 
 
-  for (type_2hdm,mh,mH,mA,mHc,tanb,sinbma) in itertools.product(type_2hdms,mhs,mHs,mAs,mHcs,tanbs,sinbmas):
+  for (type_2hdm,mh,mH,mA,mHc,tanb,sinbma) in zip(type_2hdms,mhs,mHs,mAs,mHcs,tanbs,sinbmas):
 
     name = MakeName(type_2hdm=type_2hdm,mh=mh,mH=mH,mA=mA,mHc=mHc,tanb=tanb,sinbma=sinbma)
 
@@ -326,7 +338,7 @@ def calc_effective_cpls_type2(a, b):
         'bb': dd}
     return [cplh, cplH, cplA]
 
-# calculate effective couplings in type 3
+# calculate effective couplings in type X
 def calc_effective_cpls_type3(a, b):
     uu = cs(a) / ss(b)
     dd = uu
@@ -360,7 +372,7 @@ def calc_effective_cpls_type3(a, b):
         'bb': dd}
     return [cplh, cplH, cplA]
 
-# calculate effective couplings in type 4
+# calculate effective couplings in type Y
 def calc_effective_cpls_type4(a, b):
     uu = cs(a) / ss(b)
     dd = -ss(a) / cs(b)
@@ -394,9 +406,7 @@ def calc_effective_cpls_type4(a, b):
         'bb': dd}
     return [cplh, cplH, cplA]
 
-def IterateAndCheckExperimentalConstraints(type_2hdms=["X"],mhs=[125.0],mHs=[200.0],mAs=[160.0],mHcs=[200.0],tanbs=[10.0,20.0,30.0,40.0,50.0],sinbmas=[1.0],widths_dict={},br_dicts={}):
-
-  print("<< Running higgstools >>")
+def CheckExperimentalConstraints(type_2hdms=["X"],mhs=[125.0],mHs=[200.0],mAs=[160.0],mHcs=[200.0],tanbs=[10.0],sinbmas=[1.0],widths_dict={},br_dicts={}):
 
   import Higgs.predictions as HP
   import Higgs.bounds as HB
@@ -408,7 +418,7 @@ def IterateAndCheckExperimentalConstraints(type_2hdms=["X"],mhs=[125.0],mHs=[200
   hs_excluded = {}
   hb_excluded = {}  
 
-  for (type_2hdm,mh,mH,mA,mHc,tanb,sinbma) in itertools.product(type_2hdms,mhs,mHs,mAs,mHcs,tanbs,sinbmas):
+  for (type_2hdm,mh,mH,mA,mHc,tanb,sinbma) in zip(type_2hdms,mhs,mHs,mAs,mHcs,tanbs,sinbmas):
     name = MakeName(type_2hdm=type_2hdm,mh=mh,mH=mH,mA=mA,mHc=mHc,tanb=tanb,sinbma=sinbma)
 
     if name not in widths_dict: continue
@@ -420,7 +430,7 @@ def IterateAndCheckExperimentalConstraints(type_2hdms=["X"],mhs=[125.0],mHs=[200
     if widths_dict[name]["h"] > 0:
       h.setTotalWidth(widths_dict[name]["h"])
     else:
-      print("Warning: h has negative width for {}. Setting to 1.".format(name))
+      #print("Warning: h has negative width for {}. Setting to 1.".format(name))
       h.setTotalWidth(1.0)
  
     H = pred.addParticle(HP.BsmParticle("H", "neutral", "even"))
@@ -428,7 +438,7 @@ def IterateAndCheckExperimentalConstraints(type_2hdms=["X"],mhs=[125.0],mHs=[200
     if widths_dict[name]["H"] > 0:
       H.setTotalWidth(widths_dict[name]["H"])
     else:
-      print("Warning: H has negative width for {}. Setting to 1.".format(name))
+      #print("Warning: H has negative width for {}. Setting to 1.".format(name))
       H.setTotalWidth(1.0)
     
     A = pred.addParticle(HP.BsmParticle("A", "neutral", "odd"))
@@ -436,15 +446,15 @@ def IterateAndCheckExperimentalConstraints(type_2hdms=["X"],mhs=[125.0],mHs=[200
     if widths_dict[name]["A"] > 0:
       A.setTotalWidth(widths_dict[name]["A"])
     else:
-      print("Warning:A has negative width for {}. Setting to 1.".format(name))
+      #print("Warning:A has negative width for {}. Setting to 1.".format(name))
       A.setTotalWidth(1.0)
 
-    X = pred.addParticle(HP.BsmParticle("X", "single"))
+    X = pred.addParticle(HP.BsmParticle("H+", "single", "even"))
     X.setMass(mHc)
     if widths_dict[name]["Hc"] > 0:
       X.setTotalWidth(widths_dict[name]["Hc"])
     else:
-      print("Warning: Hc has negative width for {}. Setting to 1.".format(name))
+      #print("Warning: Hc has negative width for {}. Setting to 1.".format(name))
       X.setTotalWidth(1.0)
 
     # ensure brs sum to one
@@ -492,8 +502,7 @@ def IterateAndCheckExperimentalConstraints(type_2hdms=["X"],mhs=[125.0],mHs=[200
     b = m.atan(tanb)
     a = b - m.asin(sinbma)
 
-    if type_2hdm == "X":
-      thdm = 3
+    thdm = ConvertTypeToInt(type_2hdm,ordered=True) 
 
     cpl = calc_effective_couplings(a, b, thdm)
 
@@ -544,16 +553,11 @@ def IterateAndCheckExperimentalConstraints(type_2hdms=["X"],mhs=[125.0],mHs=[200
     #print("xs_bbA*br_Atotautau = ", A.cxn("LHC13", "bbH")*A.br("tautau"))
     #print(res)
     chisq = signals(pred)
+    #print(chisq)
     hb_excluded[name] = not res.allowed
     hs_excluded[name] = chisq
 
   return hb_excluded, hs_excluded
-
-def GetAllInformation(type_2hdms=["X"],mhs=[125.0],mHs=[200.0],mAs=[160.0],mHcs=[200.0],tanbs=[10.0,20.0,30.0,40.0,50.0],sinbmas=[1.0],input_name=""):
-  theory_excluded, m12_2 = IterateAndCheckTheoreticalConstraintsAndFindm12_2(type_2hdms=type_2hdms,mhs=mhs,mHs=mHs,mAs=mAs,mHcs=mHcs,tanbs=tanbs,sinbmas=sinbmas)
-  widths, brs, theory_excluded = IterateAndFindWidthsAndBranchingRatios(type_2hdms=type_2hdms,mhs=mhs,mHs=mHs,mAs=mAs,mHcs=mHcs,tanbs=tanbs,sinbmas=sinbmas,m12_2_dict=m12_2,excluded=theory_excluded,input_name=input_name)
-  exp_excluded_hb, exp_excluded_hs = IterateAndCheckExperimentalConstraints(type_2hdms=type_2hdms,mhs=mhs,mHs=mHs,mAs=mAs,mHcs=mHcs,tanbs=tanbs,sinbmas=sinbmas,widths_dict=widths,br_dicts=brs)
-  return m12_2, theory_excluded, exp_excluded_hb, exp_excluded_hs, widths, brs
 
 def CreateJob(name,cmd_list):
   if os.path.exists(name): os.system('rm %(name)s' % vars())
@@ -562,10 +566,10 @@ def CreateJob(name,cmd_list):
   os.system('chmod +x %(name)s' % vars())
   print("Created job:",name)
 
-def CreateBatchJob(name,cmssw_base,cmd_list):
+def CreateBatchJob(name,loc,cmd_list):
   if os.path.exists(name): os.system('rm %(name)s' % vars())
   os.system('echo "#!/bin/bash" >> %(name)s' % vars())
-  os.system('echo "cd %(cmssw_base)s/src/UserCode/2HDM-Information" >> %(name)s' % vars())
+  os.system('echo "cd %(loc)s" >> %(name)s' % vars())
   os.system('echo "source /vols/grid/cms/setup.sh" >> %(name)s' % vars())
   os.system('echo "export SCRAM_ARCH=slc6_amd64_gcc481" >> %(name)s' % vars())
   os.system('echo "eval \'scramv1 runtime -sh\'" >> %(name)s' % vars())
